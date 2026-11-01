@@ -623,6 +623,10 @@ Model advertises streaming, GPU device             // dictate.streaming
   ├── ar: QwenCleo-ASR 1.7B (Qwen3-ASR 1.7B fine-tune for Egyptian Arabic and
   │   Arabic/English code-switching; Arabic only, 2.2 GB; its 19.85% WER is
   │   the author's own test) follows without a badge
+  ├── ml: Koyal Malayalam 120M (Adalat AI; offline Conformer TDT, needs
+  │   transcribe.cpp's striding pre_encode; 22.69% plain WER on FLEURS-RO)
+  │   is Recommended; its GGUF is not published yet, so it loads only from
+  │   a copy already in the models folder
   └── Every other available model follows without a badge, selectable and
       deletable; never auto-switched or auto-downloaded (setup.language-select)
 ```

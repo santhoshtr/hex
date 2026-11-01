@@ -179,6 +179,7 @@ export type ModelId =
   | "cohere_transcribe"
   | "underdog_bark_3_pro"
   | "underdog_bark_3_clean"
+  | "koyal_ml_120m"
   | "apple_speech";
 
 export interface ModelInfo {

@@ -31,6 +31,8 @@ pub enum TranscriptionModelId {
     UnderdogBark3Pro,
     #[serde(rename = "underdog_bark_3_clean")]
     UnderdogBark3Clean,
+    #[serde(rename = "koyal_ml_120m")]
+    KoyalMalayalam120M,
     AppleSpeech,
 }
 
@@ -47,6 +49,7 @@ impl TranscriptionModelId {
             Self::CohereTranscribe => "cohere_transcribe",
             Self::UnderdogBark3Pro => "underdog_bark_3_pro",
             Self::UnderdogBark3Clean => "underdog_bark_3_clean",
+            Self::KoyalMalayalam120M => "koyal_ml_120m",
             Self::AppleSpeech => "apple_speech",
         }
     }
@@ -67,6 +70,7 @@ impl FromStr for TranscriptionModelId {
             "cohere_transcribe" => Ok(Self::CohereTranscribe),
             "underdog_bark_3_pro" => Ok(Self::UnderdogBark3Pro),
             "underdog_bark_3_clean" => Ok(Self::UnderdogBark3Clean),
+            "koyal_ml_120m" => Ok(Self::KoyalMalayalam120M),
             "apple_speech" => Ok(Self::AppleSpeech),
             _ => Err(eyre!("unknown transcription model: {value}")),
         }
@@ -418,6 +422,14 @@ const QWENCLEO_RECORD: BenchmarkRecord = BenchmarkRecord {
     utterances: Some(3_699),
     ..BenchmarkRecord::unrecorded(ErrorMetric::Wer, 19.85, "ar")
 };
+/// The model card's plain WER; its headline WER_SCRIBE (14.74) is a different
+/// metric that scores sandhi merges and splits as matches.
+const KOYAL_MALAYALAM_RECORD: BenchmarkRecord = BenchmarkRecord {
+    dataset: Some("FLEURS-RO test"),
+    source: Some("Adalat AI model card, koyal-ml-120m-1.0"),
+    utterances: Some(957),
+    ..BenchmarkRecord::unrecorded(ErrorMetric::Wer, 22.69, "ml")
+};
 
 /// `model`'s benchmark record, or `None` when the system manages the model
 /// and publishes no figure (Apple Speech).
@@ -426,6 +438,7 @@ pub fn benchmark(model: &ModelDefinition) -> Option<BenchmarkRecord> {
         TranscriptionModelId::Qwen3Asr06B => Some(QWEN3_ASR_RECORD),
         TranscriptionModelId::SenseVoiceSmall => Some(SENSEVOICE_RECORD),
         TranscriptionModelId::QwenCleoAsr17B => Some(QWENCLEO_RECORD),
+        TranscriptionModelId::KoyalMalayalam120M => Some(KOYAL_MALAYALAM_RECORD),
         // The catalog's English figures: their dataset, source, and
         // conditions were not recorded.
         _ => model
@@ -558,6 +571,18 @@ const UNDERDOG_BARK_3_CLEAN_ARTIFACT: GgufArtifact = GgufArtifact {
     sha256: "42ec2f70a3d14842e322391baf5186b2829f271cc7e396aed25580135ae46fae",
     architecture: "parakeet",
     variant: "tdt-0.6b-bark-3.0-clean",
+};
+// Adalat AI's Koyal Malayalam 120M (CC-BY-4.0), converted with transcribe.cpp's
+// Parakeet converter (`striding` pre_encode). Unpublished: the repository and
+// revision are placeholders, so only a copy already in the models folder loads.
+const KOYAL_MALAYALAM_120M_ARTIFACT: GgufArtifact = GgufArtifact {
+    filename: "koyal-ml-120m-1.0-Q8_0.gguf",
+    revision: "unpublished",
+    repository: "unpublished/koyal-ml-120m-1.0-gguf",
+    bytes: 148_512_000,
+    sha256: "7dd7680ce3442766241f60e0b3ab96b7c1a2d1c21097aa3ce758dbf280c2ae9f",
+    architecture: "parakeet",
+    variant: "koyal-ml-120m-1.0",
 };
 /// Silero VAD v6.2. Dictation and meetings skip audio it finds no speech in,
 /// because models hallucinate closing phrases such as "thank you" on silence
@@ -720,6 +745,21 @@ pub const MODELS: &[ModelDefinition] = &[
         supports_language_detection: false,
     },
     ModelDefinition {
+        id: TranscriptionModelId::KoyalMalayalam120M,
+        name: "Koyal Malayalam 120M",
+        realtime: "~22x",             // Q8_0 on an Intel Core Ultra 7 255U CPU
+        word_error_rate: Some(22.69), // KOYAL_MALAYALAM_RECORD
+        quality_context: "Malayalam benchmark",
+        coverage: "Malayalam",
+        timestamps: "Token timestamps",
+        streams: false,
+        runtime: ModelRuntime::Gguf(&KOYAL_MALAYALAM_120M_ARTIFACT),
+        languages: &["ml"],
+        // Monolingual: the artifact has no language input.
+        accepts_language_hint: false,
+        supports_language_detection: false,
+    },
+    ModelDefinition {
         id: TranscriptionModelId::AppleSpeech,
         name: "Apple Speech",
         realtime: "On device",
@@ -752,6 +792,7 @@ pub const LANGUAGES: &[(&str, &str)] = &[
     ("ar", "Arabic"),
     ("hi", "Hindi"),
     ("bn", "Bangla"),
+    ("ml", "Malayalam"),
     ("vi", "Vietnamese"),
     ("ru", "Russian"),
     ("uk", "Ukrainian"),
@@ -798,8 +839,8 @@ pub fn language_name(code: &str) -> &str {
 pub(crate) fn choices_for_runtime(language: &str) -> Vec<ModelChoice> {
     use Recommendation::{Fastest, MostAccurate, Recommended, Vocabulary};
     use TranscriptionModelId::{
-        CohereTranscribe, ParakeetUnifiedEnglish, ParakeetV3, Qwen3Asr06B, SenseVoiceSmall,
-        WhisperLargeV3Turbo,
+        CohereTranscribe, KoyalMalayalam120M, ParakeetUnifiedEnglish, ParakeetV3, Qwen3Asr06B,
+        SenseVoiceSmall, WhisperLargeV3Turbo,
     };
     let choices: &[(TranscriptionModelId, Recommendation)] = match language {
         AUTO_LANGUAGE => &[(WhisperLargeV3Turbo, Recommended), (Qwen3Asr06B, Fastest)],
@@ -827,6 +868,7 @@ pub(crate) fn choices_for_runtime(language: &str) -> Vec<ModelChoice> {
         ],
         "fi" | "sv" | "da" => &[(WhisperLargeV3Turbo, Recommended), (ParakeetV3, Fastest)],
         "mt" => &[(ParakeetV3, Recommended)],
+        "ml" => &[(KoyalMalayalam120M, Recommended)],
         "ar" => &[
             (WhisperLargeV3Turbo, Recommended),
             (CohereTranscribe, MostAccurate),
@@ -1659,6 +1701,7 @@ mod tests {
                 TranscriptionModelId::UnderdogBark3Clean,
                 "underdog_bark_3_clean",
             ),
+            (TranscriptionModelId::KoyalMalayalam120M, "koyal_ml_120m"),
             (TranscriptionModelId::AppleSpeech, "apple_speech"),
         ] {
             assert_eq!(id.as_str(), name);
@@ -1993,6 +2036,7 @@ mod tests {
                 ParakeetV3,
                 UnderdogBark3Pro,
                 UnderdogBark3Clean,
+                KoyalMalayalam120M,
             ]
         );
     }
